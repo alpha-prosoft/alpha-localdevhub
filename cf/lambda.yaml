@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to deploy Lambda function from S3'
+
+Parameters:
+  LambdaFunctionName:
+    Type: String
+    Default: 'LocalDevHubCertbot'
+    Description: Name of the Lambda function
+  
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda function code
+  
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key (path) to the Lambda function code zip file
+  
+  LambdaLayerS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda layer
+  
+  LambdaLayerS3Key:
+    Type: String
+    Description: S3 key (path) to the Lambda layer zip file
+  
+  LambdaRuntime:
+    Type: String
+    Default: 'python3.12'
+    Description: Python runtime version for Lambda
+  
+  LambdaTimeout:
+    Type: Number
+    Default: 300
+    MinValue: 1
+    MaxValue: 900
+    Description: Lambda function timeout in seconds
+  
+  LambdaMemory:
+    Type: Number
+    Default: 512
+    MinValue: 128
+    MaxValue: 10240
+    Description: Lambda function memory in MB
+
+Resources:
+  # Lambda Layer
+  LambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub '${LambdaFunctionName}-layer'
+      Description: Dependencies layer for Lambda function
+      Content:
+        S3Bucket: !Ref LambdaLayerS3Bucket
+        S3Key: !Ref LambdaLayerS3Key
+      CompatibleRuntimes:
+        - !Ref LambdaRuntime
+
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${LambdaFunctionName}-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::localdevhub/*
+                  - arn:aws:s3:::localdevhub
+        - PolicyName: Route53Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - route53:ListHostedZones
+                  - route53:GetChange
+                  - route53:ChangeResourceRecordSets
+                  - route53:ListResourceRecordSets
+                Resource: '*'
+
+  # Lambda Function
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref LambdaFunctionName
+      Runtime: !Ref LambdaRuntime
+      Handler: main.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Layers:
+        - !Ref LambdaLayer
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemory
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${LambdaFunctionName}'
+      RetentionInDays: 7
+
