@@ -1,5 +1,8 @@
-# Use AWS Lambda Python runtime as base image from Docker Hub
-FROM amazon/aws-lambda-python:3.13-x86_64 AS builder
+# Build argument for Docker registry URL (defaults to Docker Hub)
+ARG DOCKER_URL=docker.io
+
+# Use AWS Lambda Python runtime as base image
+FROM ${DOCKER_URL}/amazon/aws-lambda-python:3.13-x86_64 AS builder
 
 # Build argument for custom pip index URL (optional)
 ARG PIP_INDEX_URL
