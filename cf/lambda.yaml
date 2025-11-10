@@ -25,7 +25,12 @@ Parameters:
   
   LambdaRuntime:
     Type: String
-    Default: 'python3.12'
+    Default: 'python3.13'
+    AllowedValues:
+      - python3.10
+      - python3.11
+      - python3.12
+      - python3.13
     Description: Python runtime version for Lambda
   
   LambdaTimeout:
